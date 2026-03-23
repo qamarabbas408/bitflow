@@ -50,6 +50,16 @@ pub fn run() {
                 let _ = window.set_minimizable(false);
                 let _ = window.set_maximizable(false);
 
+                // Position window at bottom right on startup
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let screen_size = monitor.size();
+                    if let Ok(window_size) = window.outer_size() {
+                        let x = screen_size.width as i32 - window_size.width as i32 - 20;
+                        let y = screen_size.height as i32 - window_size.height as i32 - 40;
+                        let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
+                    }
+                }
+
                 let w_clone = window.clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
@@ -142,14 +152,14 @@ pub fn run() {
                     for (interface_name, data) in &networks {
                         let name = interface_name.to_lowercase();
                         // Filter logic:
-                        // 1. Must be active (received or transmitted > 0)
-                        // 2. Must look like a physical interface (Ethernet, WiFi, wlan, eth, en)
-                        // 3. Must NOT look like a virtual interface (vEthernet, VirtualBox, docker, etc.)
-                        let is_active = data.received() > 0 || data.transmitted() > 0;
+                        // 1. Must look like a physical interface (Ethernet, WiFi, wlan, eth, en)
+                        // 2. Must NOT look like a virtual interface (vEthernet, VirtualBox, docker, etc.)
+                        // 3. Must be active (receiving or transmitting data)
                         let is_physical = name.contains("ethernet") || name.contains("wifi") || name.contains("wi-fi") || name.starts_with("en") || name.starts_with("eth") || name.starts_with("wlan");
                         let is_virtual = name.contains("virtual") || name.contains("vethernet") || name.contains("wsl") || name.contains("docker") || name.contains("loopback");
+                        let is_active = data.received() > 0 || data.transmitted() > 0;
 
-                        if is_active && is_physical && !is_virtual {
+                        if is_physical && !is_virtual && is_active {
                             payloads.push(NetworkSpeed {
                                 interface: interface_name.clone(),
                                 rx_formatted: format_speed(data.received()),
@@ -160,12 +170,8 @@ pub fn run() {
                         }
                     }
 
-                    if !payloads.is_empty() {
-                        // Send data to frontend
-                        let _ = handle.emit("network-speed", &payloads);
-                        // Optional: Print to console for debugging
-                        // println!("Emitted data for {} interfaces", payloads.len());
-                    }
+                    // Always emit data, even if empty or zero speed, to update the UI
+                    let _ = handle.emit("network-speed", &payloads);
                 }
             });
             Ok(())

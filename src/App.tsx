@@ -105,13 +105,23 @@ function NetworkCard({ net, globalMax }: { net: NetworkSpeed; globalMax: number 
 function App() {
   const [networks, setNetworks] = useState<NetworkSpeed[]>([]);
   const [tick, setTick] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const unlisten = listen<NetworkSpeed[]>("network-speed", (event) => {
       setNetworks(event.payload);
       setTick((t) => t + 1);
     });
-    return () => { unlisten.then((f) => f()); };
+
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+
+    return () => { 
+      unlisten.then((f) => f()); 
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+    };
   }, []);
 
   const globalMax = Math.max(
@@ -131,14 +141,22 @@ function App() {
         </div>
         <div className="header-meta">
           <span className="tick-counter">TICK #{String(tick).padStart(6, "0")}</span>
-          <span className={`status-chip ${networks.length > 0 ? "active" : "idle"}`}>
-            {networks.length > 0 ? "● LIVE" : "○ IDLE"}
+          <span 
+            className={`status-chip ${isOnline ? (networks.length > 0 ? "active" : "idle") : ""}`}
+            style={!isOnline ? { borderColor: "#ef4444", color: "#ef4444" } : {}}
+          >
+            {!isOnline ? "⚠️ OFFLINE" : networks.length > 0 ? "● LIVE" : "○ IDLE"}
           </span>
         </div>
       </header>
 
       <div className="grid">
-        {networks.length === 0 ? (
+        {!isOnline ? (
+          <div className="empty-state">
+            <p style={{ color: "#ef4444", fontWeight: "bold" }}>Internet Disconnected</p>
+            <p style={{ fontSize: "0.9em", opacity: 0.7 }}>Waiting for connection...</p>
+          </div>
+        ) : networks.length === 0 ? (
           <div className="empty-state">
             <div className="spinner" />
             <p>Awaiting network data…</p>
