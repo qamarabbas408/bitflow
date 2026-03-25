@@ -1,0 +1,85 @@
+/* src/Settings.css */
+.settings-container {
+    font-family: var(--font-mono); /* Inherit from App.css */
+    color: var(--text);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.settings-container h2 {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: 0.1em;
+    color: #e8f4f8;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.settings-description {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.interface-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    max-height: 250px; /* Scrollable if many interfaces */
+    overflow-y: auto;
+}
+
+.interface-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 0.9rem;
+}
+
+.interface-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue); /* Highlight checkbox with theme color */
+}
+
+.save-button {
+    background: linear-gradient(90deg, var(--green) 0%, var(--blue) 100%);
+    color: var(--bg);
+    border: none;
+    padding: 0.8rem 1.2rem;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    align-self: flex-end; /* Push to bottom right */
+}
+
+.save-button:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.save-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Small spinner for loading */
+.spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    align-self: center;
+    margin: 2rem auto;
+}

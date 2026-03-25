@@ -2,10 +2,17 @@
 use sysinfo::Networks;
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent, image::Image};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent, image::Image, Wry};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use serde::Serialize;
+use lazy_static::lazy_static;
+use tauri_plugin_store::{StoreExt, Builder as StoreBuilder};
+
+lazy_static! {
+    static ref SELECTED_INTERFACES: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+}
 
 #[derive(Clone, Serialize)]
 struct NetworkSpeed {
@@ -79,9 +86,66 @@ fn generate_idle_icon() -> Vec<u8> {
     rgba
 }
 
+fn open_settings_window(app_handle: &AppHandle<Wry>) {
+    if let Some(settings_window) = app_handle.get_webview_window("settings") {
+        let _ = settings_window.set_focus();
+        return;
+    }
+
+    let _settings_window = tauri::WebviewWindowBuilder::new(
+        app_handle,
+        "settings", // Unique label for the settings window
+        tauri::WebviewUrl::App("settings.html".into()) // Path to new settings HTML
+    )
+    .title("BitFlow Settings")
+    .inner_size(400.0, 500.0)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    .build()
+    .expect("Failed to create settings window");
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn get_all_network_interfaces() -> Vec<String> {
+    let networks = sysinfo::Networks::new_with_refreshed_list();
+    networks.iter().map(|(name, _)| name.clone()).collect()
+}
+
+const STORE_FILE_NAME: &str = ".settings.dat";
+const SELECTED_INTERFACES_KEY: &str = "selected_interfaces";
+
+#[tauri::command]
+async fn save_selected_interfaces(app: AppHandle, selected: Vec<String>) -> Result<(), String> {
+    let store = app.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string())?;
+    store.set(SELECTED_INTERFACES_KEY.to_string(), serde_json::to_value(&selected).unwrap());
+    store.save().map_err(|e: tauri_plugin_store::Error| e.to_string())?;
+
+    // Update global static
+    let mut global_selected = SELECTED_INTERFACES.lock().unwrap();
+    *global_selected = selected;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn load_selected_interfaces(app: AppHandle) -> Result<Vec<String>, String> {
+    let store = app.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string())?;
+    
+    if let Some(value) = store.get(SELECTED_INTERFACES_KEY.to_string()) {
+        let loaded: Vec<String> = serde_json::from_value(value.clone()).map_err(|e: serde_json::Error| e.to_string())?;
+        // Update global static on load
+        let mut global_selected = SELECTED_INTERFACES.lock().unwrap();
+        *global_selected = loaded.clone();
+        Ok(loaded)
+    } else {
+        Ok(Vec::new()) // Return empty if nothing saved
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -117,8 +181,9 @@ pub fn run() {
 
             // --- System Tray Setup ---
             let toggle_i = MenuItem::with_id(app, "toggle", "Hide", true, None::<&str>)?;
+            let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?; // NEW
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&toggle_i, &settings_i, &quit_i])?; // Add settings_i to menu
 
             let toggle_i_clone = toggle_i.clone();
 
@@ -152,7 +217,8 @@ pub fn run() {
                                 };
                                 let _ = toggle_i_clone.set_text(new_title);
                             }
-                        }
+                        },
+                        "settings" => open_settings_window(app), // NEW
                         _ => {}
                     }
                 })
@@ -193,6 +259,18 @@ pub fn run() {
             let icon_down_data = generate_tray_icon(false);
             let icon_idle_data = generate_idle_icon();
 
+            // Initial load of settings on startup
+            {
+                if let Ok(store) = handle.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string()) {
+                    if let Some(value) = store.get(SELECTED_INTERFACES_KEY.to_string()) {
+                        if let Ok(loaded) = serde_json::from_value::<Vec<String>>(value.clone()) {
+                            let mut global_selected = SELECTED_INTERFACES.lock().unwrap();
+                            *global_selected = loaded;
+                        }
+                    }
+                }
+            }
+
             // --- Background Thread for Network Monitoring ---
             thread::spawn(move || {
                 let mut networks = Networks::new_with_refreshed_list();
@@ -206,8 +284,15 @@ pub fn run() {
                     let mut total_rx = 0;
                     let mut total_tx = 0;
 
+                    let global_selected_interfaces_lock = SELECTED_INTERFACES.lock().unwrap();
+                    let selected_interfaces_is_empty = global_selected_interfaces_lock.is_empty();
+
                     for (interface_name, data) in &networks {
                         let name = interface_name.to_lowercase();
+
+                        // Check if this interface is selected, or if no interfaces are specifically selected (monitor all)
+                        let is_selected = selected_interfaces_is_empty || global_selected_interfaces_lock.contains(interface_name);
+
                         // Filter logic:
                         // 1. Must look like a physical interface (Ethernet, WiFi, wlan, eth, en)
                         // 2. Must NOT look like a virtual interface (vEthernet, VirtualBox, docker, etc.)
@@ -215,7 +300,7 @@ pub fn run() {
                         let is_physical = name.contains("ethernet") || name.contains("wifi") || name.contains("wi-fi") || name.starts_with("en") || name.starts_with("eth") || name.starts_with("wlan");
                         let is_virtual = name.contains("virtual") || name.contains("vethernet") || name.contains("wsl") || name.contains("docker") || name.contains("loopback");
 
-                        if is_physical && !is_virtual {
+                        if is_selected && is_physical && !is_virtual { // Add is_selected to the condition
                             total_rx += data.received();
                             total_tx += data.transmitted();
 
@@ -261,7 +346,13 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(StoreBuilder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_all_network_interfaces,
+            save_selected_interfaces,
+            load_selected_interfaces
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

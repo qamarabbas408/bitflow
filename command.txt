@@ -1,1 +1,2 @@
 npm run tauri dev
+press h + enter to show help  (npm run dev helper)
