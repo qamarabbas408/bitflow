@@ -13,17 +13,9 @@
     "windows": [
       {
         "title": "bitflow",
+        "label": "main",
         "width": 800,
         "height": 600
-      },
-      {
-        "title": "BitFlow Settings",
-        "label": "settings",
-        "width": 400,
-        "height": 500,
-        "resizable": false,
-        "minimizable": false,
-        "maximizable": false
       }
     ],
     "security": {

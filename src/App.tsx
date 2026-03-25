@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import "./Settings.css";
 
 interface NetworkSpeed {
   interface: string;
@@ -106,6 +108,7 @@ function App() {
   const [networks, setNetworks] = useState<NetworkSpeed[]>([]);
   const [tick, setTick] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     const unlisten = listen<NetworkSpeed[]>("network-speed", (event) => {
@@ -123,6 +126,20 @@ function App() {
       window.removeEventListener("offline", updateOnlineStatus);
     };
   }, []);
+
+  useEffect(() => {
+    if (networks.length > 0) {
+      setShowWelcome(false);
+    }
+  }, [networks]);
+
+  const handleOpenSettings = async () => {
+    try {
+      await invoke('open_settings_window_cmd');
+    } catch (err) {
+      console.error('Failed to open settings window:', err);
+    }
+  };
 
   const globalMax = Math.max(
     ...networks.map((n) => Math.max(n.rx_bytes, n.tx_bytes)),
@@ -150,23 +167,33 @@ function App() {
         </div>
       </header>
 
-      <div className="grid">
-        {!isOnline ? (
-          <div className="empty-state">
-            <p style={{ color: "#ef4444", fontWeight: "bold" }}>Internet Disconnected</p>
-            <p style={{ fontSize: "0.9em", opacity: 0.7 }}>Waiting for connection...</p>
-          </div>
-        ) : networks.length === 0 ? (
-          <div className="empty-state">
-            <div className="spinner" />
-            <p>Awaiting network data…</p>
-          </div>
-        ) : (
-          networks.map((net) => (
-            <NetworkCard key={net.interface} net={net} globalMax={globalMax} />
-          ))
-        )}
-      </div>
+      {showWelcome ? (
+        <div className="empty-state">
+          <h2 style={{ color: "#e8f4f8", marginBottom: "1rem" }}>Welcome to BitFlow</h2>
+          <p style={{ marginBottom: "1.5rem" }}>Monitor your network speed in real-time.</p>
+          <button className="save-button" onClick={handleOpenSettings} style={{ marginTop: '1rem' }}>
+            Select Network Interfaces
+          </button>
+        </div>
+      ) : (
+        <div className="grid">
+          {!isOnline ? (
+            <div className="empty-state">
+              <p style={{ color: "#ef4444", fontWeight: "bold" }}>Internet Disconnected</p>
+              <p style={{ fontSize: "0.9em", opacity: 0.7 }}>Waiting for connection...</p>
+            </div>
+          ) : networks.length === 0 ? (
+            <div className="empty-state">
+              <div className="spinner" />
+              <p>Awaiting network data…</p>
+            </div>
+          ) : (
+            networks.map((net) => (
+              <NetworkCard key={net.interface} net={net} globalMax={globalMax} />
+            ))
+          )}
+        </div>
+      )}
     </main>
   );
 }

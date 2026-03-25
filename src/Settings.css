@@ -72,6 +72,36 @@
     cursor: not-allowed;
 }
 
+.button-row {
+    display: flex;
+    gap: 0.8rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.clear-button {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.8rem 1.2rem;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.clear-button:hover:not(:disabled) {
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
+.clear-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Small spinner for loading */
 .spinner-small {
     width: 20px;

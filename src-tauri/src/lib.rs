@@ -148,6 +148,24 @@ async fn load_selected_interfaces(app: AppHandle) -> Result<Vec<String>, String>
     }
 }
 
+#[tauri::command]
+async fn clear_selected_interfaces(app: AppHandle) -> Result<(), String> {
+    let store = app.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string())?;
+    store.delete(SELECTED_INTERFACES_KEY.to_string());
+    store.save().map_err(|e| e.to_string())?;
+    
+    // Update global static
+    let mut global_selected = SELECTED_INTERFACES.lock().unwrap();
+    *global_selected = Vec::new();
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn open_settings_window_cmd(app: AppHandle) {
+    open_settings_window(&app);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -351,7 +369,9 @@ pub fn run() {
             greet,
             get_all_network_interfaces,
             save_selected_interfaces,
-            load_selected_interfaces
+            load_selected_interfaces,
+            clear_selected_interfaces,
+            open_settings_window_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

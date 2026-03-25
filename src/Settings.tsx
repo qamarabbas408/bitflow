@@ -50,9 +50,23 @@ function Settings() {
         }
     };
 
+    const handleClear = async () => {
+        try {
+            await invoke('clear_selected_interfaces');
+            // After clearing, reload the interfaces to reflect the cleared state
+            const allInterfaces = await invoke<string[]>('get_all_network_interfaces');
+            const combined = allInterfaces.map(name => ({
+                name,
+                selected: false
+            }));
+            setInterfaces(combined);
+        } catch (error) {
+            console.error("Failed to clear selection:", error);
+        }
+    };
+
     // If no interfaces are explicitly selected, we assume all are monitored.
     // The save button should indicate this default behavior.
-    const allAreSelected = interfaces.every(iface => iface.selected);
     const noneAreSelected = interfaces.every(iface => !iface.selected);
 
     return (
@@ -80,13 +94,22 @@ function Settings() {
                 </div>
             )}
             
-            <button 
-                className="save-button" 
-                onClick={handleSave}
-                disabled={initialLoad}
-            >
-                {noneAreSelected && interfaces.length > 0 ? "Save (Monitoring All)" : "Save Selection"}
-            </button>
+            <div className="button-row">
+                <button 
+                    className="clear-button" 
+                    onClick={handleClear}
+                    disabled={initialLoad}
+                >
+                    Clear Selection
+                </button>
+                <button 
+                    className="save-button" 
+                    onClick={handleSave}
+                    disabled={initialLoad}
+                >
+                    {noneAreSelected && interfaces.length > 0 ? "Save (Monitoring All)" : "Save Selection"}
+                </button>
+            </div>
         </div>
     );
 }
