@@ -124,6 +124,7 @@ pub fn run() {
 
             let tray = TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("BitFlow")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app: &AppHandle, event| {
@@ -230,6 +231,14 @@ pub fn run() {
 
                     // Always emit data, even if empty or zero speed, to update the UI
                     let _ = handle.emit("network-speed", &payloads);
+
+                    // Update Tray Tooltip
+                    let tooltip = if total_rx > 0 || total_tx > 0 {
+                        format!("▼ {} | ▲ {}", format_speed(total_rx), format_speed(total_tx))
+                    } else {
+                        "BitFlow".to_string()
+                    };
+                    let _ = tray_handle.set_tooltip(Some(&tooltip));
 
                     // Update Tray Icon Animation
                     let icon_data = if total_rx > 0 && total_tx > 0 {
