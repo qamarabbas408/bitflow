@@ -109,6 +109,7 @@ function App() {
   const [tick, setTick] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [theme, setTheme] = useState('dark');
 
   useEffect(() => {
     const unlisten = listen<NetworkSpeed[]>("network-speed", (event) => {
@@ -127,11 +128,42 @@ function App() {
     };
   }, []);
 
+  const applyTheme = (newTheme: string) => {
+    // Remove existing theme classes
+    document.documentElement.classList.remove('light-theme');
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    }
+    // For dark theme, we rely on default :root styles
+  };
+
+  const toggleTheme = async () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    applyTheme(newTheme);
+    await invoke('save_theme', { theme: newTheme });
+  };
+
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const savedTheme = await invoke<string>('load_theme');
+        setTheme(savedTheme);
+        applyTheme(savedTheme);
+      } catch (error) {
+        console.error('Failed to load theme:', error);
+      }
+    }
+    loadTheme();
+  }, []);
+
   useEffect(() => {
     if (networks.length > 0) {
       setShowWelcome(false);
     }
   }, [networks]);
+
+
 
   const handleOpenSettings = async () => {
     try {
@@ -164,6 +196,13 @@ function App() {
           >
             {!isOnline ? "⚠️ OFFLINE" : networks.length > 0 ? "● LIVE" : "○ IDLE"}
           </span>
+          <button 
+            className="theme-toggle" 
+            onClick={toggleTheme}
+            style={{ marginLeft: '0.5rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '4px', padding: '0.2rem 0.5rem', cursor: 'pointer' }}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 

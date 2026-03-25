@@ -31,6 +31,18 @@ function Settings() {
         fetchInterfaces();
     }, []);
 
+    useEffect(() => {
+        async function loadSavedTheme() {
+            try {
+                const savedTheme = await invoke<string>('load_theme');
+                applyTheme(savedTheme);
+            } catch (error) {
+                console.error("Failed to load theme:", error);
+            }
+        }
+        loadSavedTheme();
+    }, []);
+
     const handleCheckboxChange = (interfaceName: string) => {
         setInterfaces(prev =>
             prev.map(iface =>
@@ -65,6 +77,17 @@ function Settings() {
         }
     };
 
+    const applyTheme = (newTheme: string) => {
+        // Remove existing theme classes
+        document.documentElement.classList.remove('light-theme');
+        if (newTheme === 'light') {
+            document.documentElement.classList.add('light-theme');
+        }
+        // For dark theme, we rely on default :root styles
+    };
+
+
+
     // If no interfaces are explicitly selected, we assume all are monitored.
     // The save button should indicate this default behavior.
     const noneAreSelected = interfaces.every(iface => !iface.selected);
@@ -75,6 +98,7 @@ function Settings() {
             <p className="settings-description">
                 Select the network interfaces you wish to monitor. If none are selected, all available physical interfaces will be monitored by default.
             </p>
+
             {initialLoad ? (
                 <div className="spinner-small" />
             ) : interfaces.length === 0 ? (

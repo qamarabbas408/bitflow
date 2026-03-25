@@ -119,6 +119,7 @@ fn get_all_network_interfaces() -> Vec<String> {
 
 const STORE_FILE_NAME: &str = ".settings.dat";
 const SELECTED_INTERFACES_KEY: &str = "selected_interfaces";
+const THEME_KEY: &str = "theme";
 
 #[tauri::command]
 async fn save_selected_interfaces(app: AppHandle, selected: Vec<String>) -> Result<(), String> {
@@ -162,6 +163,25 @@ async fn clear_selected_interfaces(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn save_theme(app: AppHandle, theme: String) -> Result<(), String> {
+    let store = app.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string())?;
+    store.set(THEME_KEY.to_string(), serde_json::to_value(&theme).unwrap());
+    store.save().map_err(|e: tauri_plugin_store::Error| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn load_theme(app: AppHandle) -> Result<String, String> {
+    let store = app.store(STORE_FILE_NAME.to_string()).map_err(|e| e.to_string())?;
+    if let Some(value) = store.get(THEME_KEY.to_string()) {
+        let theme: String = serde_json::from_value(value.clone()).map_err(|e: serde_json::Error| e.to_string())?;
+        Ok(theme)
+    } else {
+        Ok("dark".to_string()) // default theme
+    }
+}
+
+#[tauri::command]
 fn open_settings_window_cmd(app: AppHandle) {
     open_settings_window(&app);
 }
@@ -174,7 +194,7 @@ pub fn run() {
             
             // Set initial window size to be small like a widget
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_size(Size::Logical(LogicalSize { width: 300.0, height: 450.0 }));
+                let _ = window.set_size(Size::Logical(LogicalSize { width: 350.0, height: 450.0 }));
                 let _ = window.set_minimizable(false);
                 let _ = window.set_maximizable(false);
 
@@ -371,6 +391,8 @@ pub fn run() {
             save_selected_interfaces,
             load_selected_interfaces,
             clear_selected_interfaces,
+            save_theme,
+            load_theme,
             open_settings_window_cmd
         ])
         .run(tauri::generate_context!())
