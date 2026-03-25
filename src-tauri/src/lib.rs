@@ -2,7 +2,7 @@
 use sysinfo::Networks;
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent, image::Image};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use serde::Serialize;
@@ -31,6 +31,52 @@ fn format_speed(bytes: u64) -> String {
     } else {
         format!("{} B/s", bytes)
     }
+}
+
+fn generate_tray_icon(is_up: bool) -> Vec<u8> {
+    const W: u32 = 32;
+    const H: u32 = 32;
+    let mut rgba = vec![0u8; (W * H * 4) as usize];
+    // Colors based on App.css: Green #39ff8f [57, 255, 143], Blue #38bdf8 [56, 189, 248]
+    let color = if is_up { [56, 189, 248, 255] } else { [57, 255, 143, 255] };
+
+    for y in 0..H {
+        for x in 0..W {
+            let i = ((y * W + x) * 4) as usize;
+            let mut draw = false;
+
+            // Draw a simple 16px wide arrow centered in 32px canvas
+            let mx = x as i32 - 16;
+            let my = if is_up { y as i32 - 8 } else { 24 - y as i32 }; // Flip Y for down
+
+            if (mx.abs() <= 2 && my >= 0 && my <= 14) || // Shaft
+               (my >= 0 && my <= 8 && mx.abs() <= 8 - my) { // Arrowhead
+                draw = true;
+            }
+
+            if draw { rgba[i] = color[0]; rgba[i+1] = color[1]; rgba[i+2] = color[2]; rgba[i+3] = color[3]; }
+        }
+    }
+    rgba
+}
+
+fn generate_idle_icon() -> Vec<u8> {
+    const W: u32 = 32;
+    const H: u32 = 32;
+    let mut rgba = vec![0u8; (W * H * 4) as usize];
+    
+    for y in 0..H {
+        for x in 0..W {
+            let i = ((y * W + x) * 4) as usize;
+            // Draw a small semi-transparent grey dot for idle
+            let dx = x as i32 - 16;
+            let dy = y as i32 - 16;
+            if dx * dx + dy * dy <= 36 { // 6px radius
+                rgba[i] = 150; rgba[i+1] = 150; rgba[i+2] = 150; rgba[i+3] = 200;
+            }
+        }
+    }
+    rgba
 }
 
 #[tauri::command]
@@ -76,7 +122,7 @@ pub fn run() {
 
             let toggle_i_clone = toggle_i.clone();
 
-            let _tray = TrayIconBuilder::with_id("tray")
+            let tray = TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -141,14 +187,24 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            let tray_handle = tray.clone();
+            let icon_up_data = generate_tray_icon(true);
+            let icon_down_data = generate_tray_icon(false);
+            let icon_idle_data = generate_idle_icon();
+
             // --- Background Thread for Network Monitoring ---
             thread::spawn(move || {
                 let mut networks = Networks::new_with_refreshed_list();
+                let mut step = 0;
+
                 loop {
                     thread::sleep(Duration::from_secs(1));
                     networks.refresh();
                     
                     let mut payloads = Vec::new();
+                    let mut total_rx = 0;
+                    let mut total_tx = 0;
+
                     for (interface_name, data) in &networks {
                         let name = interface_name.to_lowercase();
                         // Filter logic:
@@ -157,9 +213,11 @@ pub fn run() {
                         // 3. Must be active (receiving or transmitting data)
                         let is_physical = name.contains("ethernet") || name.contains("wifi") || name.contains("wi-fi") || name.starts_with("en") || name.starts_with("eth") || name.starts_with("wlan");
                         let is_virtual = name.contains("virtual") || name.contains("vethernet") || name.contains("wsl") || name.contains("docker") || name.contains("loopback");
-                        let is_active = data.received() > 0 || data.transmitted() > 0;
 
-                        if is_physical && !is_virtual && is_active {
+                        if is_physical && !is_virtual {
+                            total_rx += data.received();
+                            total_tx += data.transmitted();
+
                             payloads.push(NetworkSpeed {
                                 interface: interface_name.clone(),
                                 rx_formatted: format_speed(data.received()),
@@ -172,6 +230,23 @@ pub fn run() {
 
                     // Always emit data, even if empty or zero speed, to update the UI
                     let _ = handle.emit("network-speed", &payloads);
+
+                    // Update Tray Icon Animation
+                    let icon_data = if total_rx > 0 && total_tx > 0 {
+                        // Both active: Toggle every second
+                        if step % 2 == 0 { &icon_down_data } else { &icon_up_data }
+                    } else if total_rx > 0 {
+                        &icon_down_data
+                    } else if total_tx > 0 {
+                        &icon_up_data
+                    } else {
+                        &icon_idle_data
+                    };
+                    
+                    // Construct Image from the static byte vectors available in this thread
+                    let icon = Image::new(icon_data, 32, 32);
+                    let _ = tray_handle.set_icon(Some(icon));
+                    step += 1;
                 }
             });
             Ok(())
