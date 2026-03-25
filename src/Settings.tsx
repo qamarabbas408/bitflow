@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import './Settings.css'; // Create this CSS file
+import packageInfo from '../package.json';
 
 interface InterfaceInfo {
     name: string;
@@ -133,6 +134,10 @@ function Settings() {
                 >
                     {noneAreSelected && interfaces.length > 0 ? "Save (Monitoring All)" : "Save Selection"}
                 </button>
+            </div>
+            <div className="about-section">
+                <p>Version: {packageInfo.version}</p>
+                <p>Repository: <a href="https://github.com/qamarabbas408/bitflow" target="_blank" rel="noopener noreferrer">GitHub</a></p>
             </div>
         </div>
     );

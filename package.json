@@ -1,7 +1,8 @@
 {
   "name": "bitflow",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "A lightweight, real-time network speed monitor built with Tauri, React, and TypeScript",
   "type": "module",
   "scripts": {
     "dev": "vite",

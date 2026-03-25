@@ -144,3 +144,21 @@
     outline: none;
     border-color: var(--blue);
 }
+
+/* About section */
+.about-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.about-section a {
+    color: var(--blue);
+    text-decoration: none;
+}
+
+.about-section a:hover {
+    text-decoration: underline;
+}
